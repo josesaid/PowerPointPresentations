@@ -69,3 +69,9 @@ RESTful API Design Best Practices
   └─ dev.to: ✅ https://dev.to/said_olano/restful-api-design-best-practices-2833493
   └─ LinkedIn: ⏳ (manual)
   └─ GitHub: ✅ (automated)
+
+AWS CloudTrail: Audit and Compliance
+  └─ Published: 2026-07-28 14:27:16
+  └─ dev.to: ✅ https://dev.to/said_olano/aws-cloudtrail-audit-and-compliance-3484761
+  └─ LinkedIn: ⏳ (manual)
+  └─ GitHub: ✅ (automated)

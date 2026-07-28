@@ -29,9 +29,10 @@ from pathlib import Path
 import traceback
 
 # Configuration
-SKILL_DIR = Path(__file__).parent
-TOPICS_FILE = SKILL_DIR / 'temas_post_LinkedIn.txt'
-USED_FILE = SKILL_DIR / 'temas_post_LinkedIn_usados.txt'
+# For GitHub Actions: look for files in repo root
+# For local: look in current directory
+TOPICS_FILE = Path('temas_post_LinkedIn.txt')
+USED_FILE = Path('temas_post_LinkedIn_usados.txt')
 DEVTO_KEY = os.environ.get('DEVTO_API_KEY', '6RANyTeipK9AgyWN7Q2T1PLH')
 
 class PublishPipeline:

@@ -242,7 +242,7 @@ To successfully implement {self.topic.lower()}:
             return False
     
     def step3_publish(self):
-        """STEP 3: Publish to dev.to (simulated)"""
+        """STEP 3: Publish to dev.to (REAL API)"""
         self.print_step(3, "Publishing to dev.to")
         
         try:
@@ -250,15 +250,45 @@ To successfully implement {self.topic.lower()}:
                 self.print_error("No article generated")
                 return False
             
-            # Simulate publication
-            slug = self.topic.lower().replace(' ', '-').replace(':', '').replace('(', '').replace(')', '')
-            article_id = random.randint(1000000, 9999999)
-            self.url = f"https://dev.to/said_olano/{slug}-{article_id}"
+            import requests
+            
+            # Prepare payload for dev.to API
+            tags = ['java', 'springboot', 'engineering', 'architecture']
+            
+            payload = {
+                'article': {
+                    'title': self.topic,
+                    'body_markdown': self.article,
+                    'published': True,
+                    'tags': tags
+                }
+            }
+            
+            # Call dev.to API
+            response = requests.post(
+                'https://dev.to/api/articles',
+                headers={
+                    'api-key': DEVTO_KEY,
+                    'Content-Type': 'application/json'
+                },
+                json=payload,
+                timeout=30
+            )
+            
+            if response.status_code not in [200, 201]:
+                self.print_error(f"dev.to API returned {response.status_code}")
+                self.print_error(f"Response: {response.text[:200]}")
+                return False
+            
+            # Parse response
+            data = response.json()
+            self.url = f"https://dev.to/{data['user']['username']}/{data['slug']}"
+            article_id = data['id']
             
             self.print_success(f"Article ID: {article_id}")
-            self.print_success(f"Slug: {slug}")
+            self.print_success(f"Slug: {data['slug']}")
             self.print_success(f"URL: {self.url}")
-            self.print_success(f"Tags: java, springboot, engineering, architecture")
+            self.print_success(f"Tags: {', '.join(tags)}")
             self.print_success(f"Status: PUBLISHED")
             
             return True

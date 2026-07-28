@@ -81,3 +81,9 @@ Gradle: Modern Build Automation
   └─ dev.to: ✅ https://dev.to/said_olano/gradle-modern-build-automation-7565931
   └─ LinkedIn: ⏳ (manual)
   └─ GitHub: ✅ (automated)
+
+Vaadin: Modern Web UI Framework
+  └─ Published: 2026-07-28 14:47:43
+  └─ dev.to: ✅ https://dev.to/said_olano/vaadin-modern-web-ui-framework-9791388
+  └─ LinkedIn: ⏳ (manual)
+  └─ GitHub: ✅ (automated)

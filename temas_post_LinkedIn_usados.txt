@@ -75,3 +75,9 @@ AWS CloudTrail: Audit and Compliance
   └─ dev.to: ✅ https://dev.to/said_olano/aws-cloudtrail-audit-and-compliance-3484761
   └─ LinkedIn: ⏳ (manual)
   └─ GitHub: ✅ (automated)
+
+Gradle: Modern Build Automation
+  └─ Published: 2026-07-28 14:45:04
+  └─ dev.to: ✅ https://dev.to/said_olano/gradle-modern-build-automation-7565931
+  └─ LinkedIn: ⏳ (manual)
+  └─ GitHub: ✅ (automated)

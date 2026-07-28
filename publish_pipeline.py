@@ -33,7 +33,7 @@ import traceback
 # For local: look in current directory
 TOPICS_FILE = Path('temas_post_LinkedIn.txt')
 USED_FILE = Path('temas_post_LinkedIn_usados.txt')
-DEVTO_KEY = os.environ.get('DEVTO_API_KEY', '6RANyTeipK9AgyWN7Q2T1PLH')
+DEVTO_KEY = os.environ.get('DEVTO_API_KEY', 'xMJ7pwUHEt1fJ8i1TZFmw2Gi1')
 
 class PublishPipeline:
     def __init__(self):

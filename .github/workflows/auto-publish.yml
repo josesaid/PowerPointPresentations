@@ -1,4 +1,4 @@
-name: Auto-Publish to dev.to
+name: Auto-Publish to dev.to & LinkedIn
 
 on:
   schedule:
@@ -9,26 +9,131 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
-      - name: Publish to dev.to
+
+      - name: Generate and Publish
+        run: |
+          node << 'EOF'
+          const https = require('https');
+          const fs = require('fs');
+
+          async function generateArticle() {
+            return new Promise((resolve, reject) => {
+              const payload = JSON.stringify({
+                model: "claude-opus-4-1",
+                max_tokens: 1500,
+                messages: [{
+                  role: "user",
+                  content: "Write a short technical blog post about Java Spring Boot. Return ONLY valid JSON with keys: title, body_markdown, tags"
+                }]
+              });
+
+              const options = {
+                hostname: 'api.anthropic.com',
+                path: '/v1/messages',
+                method: 'POST',
+                headers: {
+                  'x-api-key': process.env.ANTHROPIC_API_KEY,
+                  'anthropic-version': '2023-06-01',
+                  'content-type': 'application/json',
+                  'content-length': Buffer.byteLength(payload)
+                }
+              };
+
+              const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                  try {
+                    const response = JSON.parse(data);
+                    const content = response.content[0].text;
+                    const article = JSON.parse(content);
+                    resolve(article);
+                  } catch (e) {
+                    reject(e);
+                  }
+                });
+              });
+              req.on('error', reject);
+              req.write(payload);
+              req.end();
+            });
+          }
+
+          async function publishToDevto(article) {
+            return new Promise((resolve, reject) => {
+              const payload = JSON.stringify({
+                article: {
+                  title: article.title,
+                  body_markdown: article.body_markdown,
+                  published: true,
+                  tags: article.tags || ['java']
+                }
+              });
+
+              const options = {
+                hostname: 'dev.to',
+                path: '/api/articles',
+                method: 'POST',
+                headers: {
+                  'api-key': process.env.DEVTO_API_KEY,
+                  'content-type': 'application/json',
+                  'content-length': Buffer.byteLength(payload)
+                }
+              };
+
+              const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                  if (res.statusCode === 201) {
+                    resolve(JSON.parse(data).article);
+                  } else {
+                    reject(new Error(`Error ${res.statusCode}`));
+                  }
+                });
+              });
+              req.on('error', reject);
+              req.write(payload);
+              req.end();
+            });
+          }
+
+          (async () => {
+            try {
+              console.log('Generating article...');
+              const article = await generateArticle();
+              console.log('Publishing to dev.to...');
+              const result = await publishToDevto(article);
+              console.log('Published: ' + result.url);
+              fs.writeFileSync('published.json', JSON.stringify(result));
+            } catch (e) {
+              console.error(e.message);
+              process.exit(1);
+            }
+          })();
+          EOF
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
-        run: |
-          echo "Publishing to dev.to..."
-          echo "Workflow ready!"
 
-      - name: Commit changes
+      - name: Commit
+        if: success()
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add -A || true
-          git commit -m "Auto-publish workflow" || true
-          git push || true
+          git add published.json || true
+          git commit -m "Auto-published article" || true
+          git push origin master
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}

@@ -33,7 +33,10 @@ jobs:
               const r = https.request(options, (res) => {
                 let data = '';
                 res.on('data', c => data += c);
-                res.on('end', () => resolve({ status: res.statusCode, body: data }));
+                res.on('end', () => {
+                  console.log(`${hostname} ${path} -> ${res.statusCode}`);
+                  resolve({ status: res.statusCode, body: data, headers: res.headers });
+                });
               });
               r.on('error', reject);
               if (payload) r.write(payload);
@@ -43,15 +46,15 @@ jobs:
 
           (async () => {
             try {
+              console.log('Step 1: Generate article with Claude...');
               const payload = JSON.stringify({
                 model: "claude-opus-4-8",
                 max_tokens: 1500,
                 messages: [{
                   role: "user",
-                  content: `Create a technical blog post about Java and Spring Boot. 
-                  
-                  Return ONLY raw JSON (no markdown, no code blocks):
-                  {"title":"Article Title Here","body_markdown":"# Title\\n\\nContent here...","tags":["java","springboot"]}`
+                  content: `Create a technical blog post about Java. 
+                  Return ONLY raw JSON (no markdown):
+                  {"title":"Article Title","body_markdown":"# Title\\n\\nContent","tags":["java"]}`
                 }]
               });
               
@@ -62,14 +65,17 @@ jobs:
                 'content-length': Buffer.byteLength(payload)
               }, payload);
               
-              if (res1.status !== 200) throw new Error('Claude: ' + res1.body);
+              if (res1.status !== 200) {
+                console.error('Claude error:', res1.body);
+                throw new Error('Claude failed');
+              }
               
               let jsonText = JSON.parse(res1.body).content[0].text;
-              // Clean markdown formatting if present
               jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-              
               const article = JSON.parse(jsonText);
+              console.log('Generated article:', article.title);
               
+              console.log('Step 2: Publish to dev.to...');
               const payload2 = JSON.stringify({
                 article: {
                   title: article.title,
@@ -79,19 +85,25 @@ jobs:
                 }
               });
               
+              console.log('Payload:', payload2.substring(0, 100));
+              
               const res2 = await req('dev.to', '/api/articles', 'POST', {
                 'api-key': process.env.DEVTO_API_KEY,
                 'content-type': 'application/json',
                 'content-length': Buffer.byteLength(payload2)
               }, payload2);
               
-              if (res2.status !== 201) throw new Error('dev.to: ' + res2.body);
-              const published = JSON.parse(res2.body).article;
+              console.log('dev.to response:', res2.body);
               
+              if (res2.status !== 201) {
+                throw new Error(`dev.to ${res2.status}: ${res2.body}`);
+              }
+              
+              const published = JSON.parse(res2.body).article;
               fs.writeFileSync('published.json', JSON.stringify(published));
-              console.log('Published: ' + published.url);
+              console.log('SUCCESS: ' + published.url);
             } catch (e) {
-              console.error(e.message);
+              console.error('FINAL ERROR:', e.message);
               process.exit(1);
             }
           })();

@@ -1,0 +1,11 @@
+🤖 Spring AI + Gemini: Add Google's Models to Your Spring Boot App Without Rewriting Anything
+
+Most "add an LLM to your backend" guides leave you with hand-rolled HTTP clients and JSON mapping that break the moment the provider changes a field. Spring AI treats a model like any other Spring bean — configured with properties, injected where you need it — and Gemini drops right into that shape.
+
+The calling code ends up boring on purpose: inject a ChatClient, call .prompt().user(...).call().content(), and swapping providers later means changing a dependency and a YAML block, not your service. But there are two config traps that look like billing bugs and aren't — including one property that silently switches your whole auth mode and rejects a perfectly good API key.
+
+I wrote up the full setup (both auth paths), structured output straight into Java records, and the two gotchas that cost people an afternoon.
+
+Read more: https://dev.to/said_olano/spring-ai-gemini-add-googles-models-to-your-spring-boot-app-without-rewriting-anything-4a2k
+
+#SpringAI #Java #Gemini #SpringBoot #AIEngineering

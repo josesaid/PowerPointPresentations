@@ -1,0 +1,24 @@
+# Temas Publicados - LinkedIn & dev.to
+# Formato: Topic | Fecha | Plataformas
+# ============================================================
+
+Spring Cloud: Microservices Architecture Patterns
+  └─ Publicado: 2026-07-17
+  └─ Plataformas: LinkedIn ✅ | dev.to ⏳ | GitHub ✅
+  └─ PDFs: SpringCloud_EN.pdf, SpringCloud_ES.pdf, SpringCloud_IT.pdf
+
+JDBC: Java Database Connectivity
+  └─ Publicado: 2026-07-17
+  └─ Plataformas: LinkedIn ✅ | dev.to ⏳ | GitHub ✅
+  └─ PDFs: JDBC_EN.pdf, JDBC_ES.pdf, JDBC_IT.pdf
+
+Spring AI + Gemini: Google's Models in Spring Boot
+  └─ Publicado: 2026-08-01
+  └─ Plataformas: dev.to ✅ | LinkedIn ✅ | GitHub ✅
+  └─ PDFs: SpringAI_Gemini_EN.pdf, SpringAI_Gemini_ES.pdf, SpringAI_Gemini_IT.pdf
+
+# ============================================================
+# Total Temas Publicados: 3
+# Temas Disponibles: 195 de 198
+# Última Actualización: 2026-08-01 14:16 CST
+# ============================================================

@@ -21,92 +21,76 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Generate and Publish
+      - name: Generate and Publish Article
         run: |
           node << 'EOF'
           const https = require('https');
           const fs = require('fs');
 
-          async function generateArticle() {
+          function makeRequest(hostname, path, method, headers, payload) {
             return new Promise((resolve, reject) => {
-              const payload = JSON.stringify({
-                model: "claude-opus-4-1",
-                max_tokens: 1500,
-                messages: [{
-                  role: "user",
-                  content: "Write a short technical blog post about Java Spring Boot. Return ONLY valid JSON with keys: title, body_markdown, tags"
-                }]
-              });
-
-              const options = {
-                hostname: 'api.anthropic.com',
-                path: '/v1/messages',
-                method: 'POST',
-                headers: {
-                  'x-api-key': process.env.ANTHROPIC_API_KEY,
-                  'anthropic-version': '2023-06-01',
-                  'content-type': 'application/json',
-                  'content-length': Buffer.byteLength(payload)
-                }
-              };
-
+              const options = { hostname, path, method, headers };
               const req = https.request(options, (res) => {
                 let data = '';
                 res.on('data', chunk => data += chunk);
                 res.on('end', () => {
-                  try {
-                    const response = JSON.parse(data);
-                    const content = response.content[0].text;
-                    const article = JSON.parse(content);
-                    resolve(article);
-                  } catch (e) {
-                    reject(e);
-                  }
+                  resolve({ statusCode: res.statusCode, body: data });
                 });
               });
               req.on('error', reject);
-              req.write(payload);
+              if (payload) req.write(payload);
               req.end();
             });
           }
 
-          async function publishToDevto(article) {
-            return new Promise((resolve, reject) => {
-              const payload = JSON.stringify({
-                article: {
-                  title: article.title,
-                  body_markdown: article.body_markdown,
-                  published: true,
-                  tags: article.tags || ['java']
-                }
-              });
-
-              const options = {
-                hostname: 'dev.to',
-                path: '/api/articles',
-                method: 'POST',
-                headers: {
-                  'api-key': process.env.DEVTO_API_KEY,
-                  'content-type': 'application/json',
-                  'content-length': Buffer.byteLength(payload)
-                }
-              };
-
-              const req = https.request(options, (res) => {
-                let data = '';
-                res.on('data', chunk => data += chunk);
-                res.on('end', () => {
-                  if (res.statusCode === 201) {
-                    resolve(JSON.parse(data).article);
-                  } else {
-                    reject(new Error(`Error ${res.statusCode}`));
-                  }
-                });
-              });
-              req.on('error', reject);
-              req.write(payload);
-              req.end();
+          async function generateArticle() {
+            const payload = JSON.stringify({
+              model: "claude-3-5-sonnet-20241022",
+              max_tokens: 1500,
+              messages: [{
+                role: "user",
+                content: `Write a technical blog post about Java and Spring Boot.
+Return ONLY JSON: {"title": "...", "body_markdown": "...", "tags": ["java"]}`
+              }]
             });
+
+            const headers = {
+              'x-api-key': process.env.ANTHROPIC_API_KEY,
+              'anthropic-version': '2023-06-01',
+              'content-type': 'application/json',
+              'content-length': Buffer.byteLength(payload)
+            };
+
+            const response = await makeRequest('api.anthropic.com', '/v1/messages', 'POST', headers, payload);
+            if (response.statusCode !== 200) {
+              throw new Error(`Claude error ${response.statusCode}: ${response.body}`);
+            }
+            const data = JSON.parse(response.body);
+            const article = JSON.parse(data.content[0].text);
+            return article;
+          }
+
+          async function publishToDevto(article) {
+            const payload = JSON.stringify({
+              article: {
+                title: article.title,
+                body_markdown: article.body_markdown,
+                published: true,
+                tags: article.tags || ['java']
+              }
+            });
+
+            const headers = {
+              'api-key': process.env.DEVTO_API_KEY,
+              'content-type': 'application/json',
+              'content-length': Buffer.byteLength(payload)
+            };
+
+            const response = await makeRequest('dev.to', '/api/articles', 'POST', headers, payload);
+            if (response.statusCode !== 201) {
+              throw new Error(`dev.to error ${response.statusCode}: ${response.body}`);
+            }
+            return JSON.parse(response.body).article;
           }
 
           (async () => {
@@ -114,11 +98,11 @@ jobs:
               console.log('Generating article...');
               const article = await generateArticle();
               console.log('Publishing to dev.to...');
-              const result = await publishToDevto(article);
-              console.log('Published: ' + result.url);
-              fs.writeFileSync('published.json', JSON.stringify(result));
+              const published = await publishToDevto(article);
+              console.log('Published: ' + published.url);
+              fs.writeFileSync('published.json', JSON.stringify(published));
             } catch (e) {
-              console.error(e.message);
+              console.error('Error:', e.message);
               process.exit(1);
             }
           })();
@@ -133,7 +117,7 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add published.json || true
-          git commit -m "Auto-published article" || true
+          git commit -m "Auto-published" || true
           git push origin master
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}

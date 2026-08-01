@@ -92,9 +92,15 @@ jobs:
                 throw new Error(`dev.to ${devtoRes.status}: ${err}`);
               }
               
-              const published = await devtoRes.json();
-              fs.writeFileSync('published.json', JSON.stringify(published.article));
-              console.log('✅ SUCCESS: ' + published.article.url);
+              const bodyText = await devtoRes.text();
+              console.log('Response body:', bodyText.substring(0, 200));
+              
+              const published = JSON.parse(bodyText);
+              const articleData = published.article || published;
+              
+              fs.writeFileSync('published.json', JSON.stringify(articleData));
+              const url = articleData.url || articleData.canonical_url || 'https://dev.to/said_olano';
+              console.log('✅ SUCCESS: ' + url);
             } catch (e) {
               console.error('❌ ERROR:', e.message);
               process.exit(1);

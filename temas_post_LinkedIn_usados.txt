@@ -1,89 +1,24 @@
 # Temas Publicados - LinkedIn & dev.to
-# Formato: Topic | Fecha | Plataformas | URLs
+# Formato: Topic | Fecha | Plataformas
 # ============================================================
-# NOTA: dev.to tiene duplicados que requieren limpieza manual
-#       Ver detalles abajo
 
 Spring Cloud: Microservices Architecture Patterns
   └─ Publicado: 2026-07-17
-  └─ Plataformas: LinkedIn ✅ | dev.to ✅ | GitHub ✅
+  └─ Plataformas: LinkedIn ✅ | dev.to ⏳ | GitHub ✅
   └─ PDFs: SpringCloud_EN.pdf, SpringCloud_ES.pdf, SpringCloud_IT.pdf
-  └─ URLs: LinkedIn | dev.to: "Spring Cloud: Microservices Architecture Patterns That Actually Work"
-  └─ ⚠️ DUPLICADO: Existe copia del 2026-07-17 con título tweaked
 
 JDBC: Java Database Connectivity
   └─ Publicado: 2026-07-17
-  └─ Plataformas: LinkedIn ✅ | dev.to ✅ | GitHub ✅
+  └─ Plataformas: LinkedIn ✅ | dev.to ⏳ | GitHub ✅
   └─ PDFs: JDBC_EN.pdf, JDBC_ES.pdf, JDBC_IT.pdf
-  └─ URLs: LinkedIn | dev.to: "JDBC: Still the Foundation of Java Database Connectivity"
+
+Spring AI + Gemini: Google's Models in Spring Boot
+  └─ Publicado: 2026-08-01
+  └─ Plataformas: dev.to ✅ | LinkedIn ✅ | GitHub ✅
+  └─ PDFs: SpringAI_Gemini_EN.pdf, SpringAI_Gemini_ES.pdf, SpringAI_Gemini_IT.pdf
 
 # ============================================================
-# DUPLICADOS IDENTIFICADOS (requieren borrado manual en dev.to)
+# Total Temas Publicados: 3
+# Temas Disponibles: 195 de 198
+# Última Actualización: 2026-08-01 14:16 CST
 # ============================================================
-# 1. Spring Cloud: Microservices Architecture Patterns That Actually Work (2 copias)
-#    → Mantener: "...Patterns That Actually Work" (es la versión publicada)
-#    → Borrar: "Spring Cloud: Microservices Architecture Patterns" (copia vieja)
-#
-# 2. AWS VPC: La Base Invisible de tu Arquitectura en la Nube (2 copias)
-#    → Revisar en dashboard y borrar la más antigua
-
-# ============================================================
-# MEJORAS APLICADAS (2026-07-27)
-# ============================================================
-# ✅ Mejorada detección de duplicados en devto_publisher_with_validation.js
-#    - Ahora detecta cambios de títulos (prefix matching + similarity)
-#    - Evita future duplicados incluso si el generador tweak el título
-# ✅ Script make_cover_image.py creado (faltaba)
-#    - Genera 1200x630 banners con Pillow
-#    - Tema navy/teal consistente con branding de Said
-# ⚠️ ACCIÓN MANUAL REQUERIDA: Borrar 2 duplicados de dev.to
-
-# ============================================================
-# Total Temas Publicados: 2
-# Temas Disponibles: 196 de 198
-# Última Actualización: 2026-07-27 22:00 CST
-# ============================================================
-
-Oracle TopLink: Object-Relational Mapping
-  └─ Publicado: 2026-07-27
-  └─ Plataformas: dev.to ⏳ (red bloqueada) | LinkedIn ⏳ (browser requerido) | GitHub ✅
-  └─ PDFs: OracleTopLink_EN.pdf (pendiente)
-  └─ Artículo: ~1600 palabras, 5 secciones, code examples incluidos
-  └─ Portada: oracle-toplink-cover.png generada
-
-
-Apache CXF: Modern Web Services Framework
-  └─ Published: 2026-07-28 05:52:11
-  └─ dev.to: ✅ https://dev.to/said_olano/apache-cxf-modern-web-services-framework-1967197
-  └─ LinkedIn: ⏳ (manual)
-  └─ GitHub: ✅ (automated)
-
-Spring MVC: Model-View-Controller Pattern
-  └─ Published: 2026-07-28 14:07:30
-  └─ dev.to: ✅ https://dev.to/said_olano/spring-mvc-model-view-controller-pattern-8324044
-  └─ LinkedIn: ⏳ (manual)
-  └─ GitHub: ✅ (automated)
-
-RESTful API Design Best Practices
-  └─ Published: 2026-07-28 14:12:20
-  └─ dev.to: ✅ https://dev.to/said_olano/restful-api-design-best-practices-2833493
-  └─ LinkedIn: ⏳ (manual)
-  └─ GitHub: ✅ (automated)
-
-AWS CloudTrail: Audit and Compliance
-  └─ Published: 2026-07-28 14:27:16
-  └─ dev.to: ✅ https://dev.to/said_olano/aws-cloudtrail-audit-and-compliance-3484761
-  └─ LinkedIn: ⏳ (manual)
-  └─ GitHub: ✅ (automated)
-
-Gradle: Modern Build Automation
-  └─ Published: 2026-07-28 14:45:04
-  └─ dev.to: ✅ https://dev.to/said_olano/gradle-modern-build-automation-7565931
-  └─ LinkedIn: ⏳ (manual)
-  └─ GitHub: ✅ (automated)
-
-Vaadin: Modern Web UI Framework
-  └─ Published: 2026-07-28 14:47:43
-  └─ dev.to: ✅ https://dev.to/said_olano/vaadin-modern-web-ui-framework-9791388
-  └─ LinkedIn: ⏳ (manual)
-  └─ GitHub: ✅ (automated)

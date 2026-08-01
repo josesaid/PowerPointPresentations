@@ -48,7 +48,10 @@ jobs:
                 max_tokens: 1500,
                 messages: [{
                   role: "user",
-                  content: "Write a short technical post about Java. Return JSON: {title, body_markdown, tags}"
+                  content: `Create a technical blog post about Java and Spring Boot. 
+                  
+                  Return ONLY raw JSON (no markdown, no code blocks):
+                  {"title":"Article Title Here","body_markdown":"# Title\\n\\nContent here...","tags":["java","springboot"]}`
                 }]
               });
               
@@ -60,7 +63,12 @@ jobs:
               }, payload);
               
               if (res1.status !== 200) throw new Error('Claude: ' + res1.body);
-              const article = JSON.parse(JSON.parse(res1.body).content[0].text);
+              
+              let jsonText = JSON.parse(res1.body).content[0].text;
+              // Clean markdown formatting if present
+              jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+              
+              const article = JSON.parse(jsonText);
               
               const payload2 = JSON.stringify({
                 article: {

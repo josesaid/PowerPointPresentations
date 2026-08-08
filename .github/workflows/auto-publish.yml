@@ -117,7 +117,7 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add published.json || true
-          git commit -m "Auto-published" || true
-          git push origin master
+          git commit -m "Auto-published article" || echo "No changes to commit"
+          git push origin $(git rev-parse --abbrev-ref HEAD) || echo "Nothing to push"
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}

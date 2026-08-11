@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_PAT }}
-
+          persist-credentials: true  # ← Esto es lo principal
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -117,7 +117,8 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add published.json || true
-          git commit -m "Auto-published" || true
-          git push origin master
+          git commit -m "Auto-published article" || echo "No changes to commit"
+          git pull --rebase origin master 2>/dev/null || true
+          git push --force-with-lease origin master 2>/dev/null || echo "Push skipped"
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}

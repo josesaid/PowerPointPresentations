@@ -1,11 +1,12 @@
+# En tu repositorio PowerPointPresentations
+
+# Descarga el workflow corregido
+cat > .github/workflows/publish.yml << 'EOF'
 name: Auto-Publish LinkedIn + dev.to + GitHub
 
 on:
   schedule:
-    # Diariamente a las 2 PM UTC (10 AM EST)
     - cron: '0 14 * * *'
-
-  # Trigger manual
   workflow_dispatch:
 
 jobs:
@@ -23,45 +24,49 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests
+        run: python -m pip install --upgrade pip requests
 
       - name: Publish to dev.to
         env:
           DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
         run: |
-          python << 'PYTHON_EOF'
+          python3 << 'PYTHON_EOF'
           import requests
           import os
-          from datetime import datetime
-
+          
           api_key = os.environ.get('DEVTO_API_KEY')
-
-          # Read article
+          
+          # Read article from current directory
           try:
-              with open('article_EN.md') as f:
+              with open('article_EN.md', 'r') as f:
                   content = f.read()
-          except:
-              print("❌ article_EN.md not found")
+              print(f"✅ Read article_EN.md ({len(content)} chars)")
+          except FileNotFoundError as e:
+              print(f"❌ File not found: {e}")
+              print("Files in current directory:")
+              import os
+              for f in os.listdir('.'):
+                  print(f"  - {f}")
               exit(1)
-
+          
           # Extract title
           title = None
           for line in content.split('\n'):
               if line.startswith('# '):
                   title = line.replace('# ', '').strip()
                   break
-
+          
           if not title:
               print("❌ Could not extract title")
               exit(1)
-
+          
+          print(f"📝 Title: {title}")
+          
           headers = {
               'api-key': api_key,
               'Content-Type': 'application/json'
           }
-
+          
           payload = {
               'article': {
                   'title': title,
@@ -70,7 +75,7 @@ jobs:
                   'tags': ['database', 'architecture', 'microservices', 'scaling']
               }
           }
-
+          
           try:
               response = requests.post(
                   'https://dev.to/api/articles',
@@ -78,13 +83,12 @@ jobs:
                   headers=headers,
                   timeout=10
               )
-
+              
               if response.status_code == 201:
                   data = response.json()
                   article_url = f"https://dev.to/said_olano/{data['slug']}"
-                  print(f"✅ Published to dev.to: {article_url}")
-                  with open('devto_url.txt', 'w') as f:
-                      f.write(article_url)
+                  print(f"✅ Published to dev.to")
+                  print(f"   {article_url}")
               else:
                   print(f"❌ API Error: {response.status_code}")
                   print(response.text)
@@ -94,17 +98,16 @@ jobs:
               exit(1)
           PYTHON_EOF
 
-      - name: Commit PDFs to GitHub
+      - name: Commit PDFs
         run: |
           git config --global user.email "josesaid@gmail.com"
           git config --global user.name "Said Olano"
-          git add *.pdf || echo "No PDFs to add"
-          git commit -m "Add published PDFs - $(date +%Y-%m-%d)" || echo "No changes"
-          git push || echo "Push failed - check permissions"
+          git add *.pdf || true
+          git commit -m "Update PDFs - $(date +%Y-%m-%d)" || echo "No changes"
+          git push || echo "Push skipped"
+EOF
 
-      - name: Create report
-        if: always()
-        run: |
-          echo "✅ Pipeline execution completed"
-          echo "Check: https://dev.to/said_olano"
-          echo "Check: https://github.com/${{ github.repository }}/actions"
+# Commit y push
+git add .github/workflows/publish.yml
+git commit -m "Fix workflow - improve file detection"
+git push

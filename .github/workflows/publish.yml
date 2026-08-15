@@ -14,8 +14,34 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_PAT }}
-      - name: Run Publisher
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install playwright
+          playwright install chromium
+      
+      - name: Generate and Publish to dev.to
         run: python3 publish.py
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
+      
+      - name: Publish to LinkedIn
+        run: |
+          if [ -f article_state.txt ]; then
+            TITLE=$(grep "^TITLE:" article_state.txt | cut -d: -f2- | xargs)
+            URL=$(grep "^URL:" article_state.txt | cut -d: -f2- | xargs)
+            TAGS=$(grep "^TAGS:" article_state.txt | cut -d: -f2- | xargs)
+            
+            echo "Publishing to LinkedIn..."
+            python3 linkedin.py "$TITLE" "$URL" "$TAGS"
+          fi
+        env:
+          LINKEDIN_EMAIL: ${{ secrets.LINKEDIN_EMAIL }}
+          LINKEDIN_PASSWORD: ${{ secrets.LINKEDIN_PASSWORD }}
+        continue-on-error: true

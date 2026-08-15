@@ -1,12 +1,10 @@
 name: Auto-Publish to dev.to
-
 on:
   schedule:
     - cron: '0 14 * * *'
     - cron: '0 18 * * *'
     - cron: '0 22 * * *'
   workflow_dispatch:
-
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -21,4 +19,54 @@ jobs:
           node-version: '20'
       - name: Generate and Publish
         run: |
-          echo "Workflow valid - ready to test"
+          node <<'ENDNODE'
+          const fs = require('fs');
+          console.log('=== START ===');
+          console.log('ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? 'OK' : 'MISSING');
+          console.log('DEVTO_API_KEY:', process.env.DEVTO_API_KEY ? 'OK' : 'MISSING');
+          (async () => {
+            try {
+              console.log('\n1) Generating article...');
+              const res1 = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+                body: JSON.stringify({model: 'claude-opus-4-8', max_tokens: 1500, messages: [{role: 'user', content: 'Write a tech blog post about Java. Return ONLY JSON with: title, body_markdown, tags'}]})
+              });
+              if (!res1.ok) throw new Error(`Claude ${res1.status}`);
+              const d1 = await res1.json();
+              const txt = d1.content[0].text;
+              const s = txt.indexOf('{'), e = txt.lastIndexOf('}');
+              if (s === -1 || e === -1) throw new Error('No JSON in response');
+              const article = JSON.parse(txt.substring(s, e + 1));
+              console.log('Title:', article.title.substring(0, 40));
+              console.log('\n2) Publishing to dev.to...');
+              const res2 = await fetch('https://dev.to/api/articles', {
+                method: 'POST',
+                headers: {'api-key': process.env.DEVTO_API_KEY, 'content-type': 'application/json'},
+                body: JSON.stringify({article: {title: article.title, body_markdown: article.body_markdown, published: true, tags: article.tags || ['java']}})
+              });
+              if (!res2.ok) throw new Error(`dev.to ${res2.status}`);
+              const d2 = await res2.json();
+              const url = d2.article?.url || 'https://dev.to/said_olano';
+              console.log('Published:', url);
+              fs.writeFileSync('publish_state.json', JSON.stringify({title: article.title, url: url, time: new Date().toISOString()}, null, 2));
+              console.log('\n=== SUCCESS ===');
+            } catch (e) {
+              console.error('\n=== ERROR ===', e.message);
+              process.exit(1);
+            }
+          })();
+          ENDNODE
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
+      - name: Commit
+        if: success()
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add publish_state.json || true
+          git commit -m "docs: Auto-published article" || echo "No changes"
+          git push origin master || echo "Push skipped"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}

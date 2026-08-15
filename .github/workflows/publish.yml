@@ -15,7 +15,8 @@ jobs:
         with:
           token: ${{ secrets.GH_PAT }}
       - name: Generate and Publish
-        run: python3 << 'EOF'
+        run: |
+          python3 << 'PYEOF'
 import os
 import json
 import urllib.request
@@ -23,7 +24,6 @@ import urllib.error
 
 print("=== START ===\n")
 
-# Verify credentials
 print("1. Checking API keys...")
 ANTHROPIC_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 DEVTO_KEY = os.environ.get('DEVTO_API_KEY', '')
@@ -31,38 +31,57 @@ DEVTO_KEY = os.environ.get('DEVTO_API_KEY', '')
 if not ANTHROPIC_KEY or not DEVTO_KEY:
     print("ERROR: Missing API keys")
     exit(1)
-print(f"✓ ANTHROPIC: {len(ANTHROPIC_KEY)} chars")
-print(f"✓ DEVTO: {len(DEVTO_KEY)} chars\n")
+print(f"✓ ANTHROPIC_API_KEY: {len(ANTHROPIC_KEY)} chars")
+print(f"✓ DEVTO_API_KEY: {len(DEVTO_KEY)} chars\n")
 
-# Call Claude
-print("2. Generating article...")
+print("2. Generating article with Claude...")
 try:
     req = urllib.request.Request(
         'https://api.anthropic.com/v1/messages',
-        data=json.dumps({'model':'claude-opus-4-8','max_tokens':1500,'messages':[{'role':'user','content':'Write a tech blog post about Java. Return ONLY JSON: {title, body_markdown, tags}'}]}).encode(),
-        headers={'x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','content-type':'application/json'}
+        data=json.dumps({
+            'model': 'claude-opus-4-8',
+            'max_tokens': 1500,
+            'messages': [{
+                'role': 'user',
+                'content': 'Write a technical blog about Java Spring Boot. Return only JSON: {title, body_markdown, tags}'
+            }]
+        }).encode(),
+        headers={
+            'x-api-key': ANTHROPIC_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json'
+        }
     )
     with urllib.request.urlopen(req) as res:
         if res.status != 200:
-            print(f"Claude error: {res.status}")
+            print(f"ERROR: Claude {res.status}")
             exit(1)
         data = json.loads(res.read())
         text = data['content'][0]['text']
         s = text.find('{')
         e = text.rfind('}') + 1
         article = json.loads(text[s:e])
-        print(f"✓ Title: {article['title'][:50]}\n")
+        print(f"✓ Title: {article['title'][:60]}\n")
 except Exception as e:
     print(f"ERROR: {e}")
     exit(1)
 
-# Publish to dev.to
 print("3. Publishing to dev.to...")
 try:
     req = urllib.request.Request(
         'https://dev.to/api/articles',
-        data=json.dumps({'article':{'title':article['title'],'body_markdown':article.get('body_markdown','Test'),'published':True,'tags':article.get('tags',['java'])[:4]}}).encode(),
-        headers={'api-key':DEVTO_KEY,'content-type':'application/json'}
+        data=json.dumps({
+            'article': {
+                'title': article['title'],
+                'body_markdown': article.get('body_markdown', 'Test article'),
+                'published': True,
+                'tags': article.get('tags', ['java'])[:4]
+            }
+        }).encode(),
+        headers={
+            'api-key': DEVTO_KEY,
+            'content-type': 'application/json'
+        }
     )
     with urllib.request.urlopen(req) as res:
         if res.status in [200, 201]:
@@ -71,17 +90,17 @@ try:
             print(f"✓ Published: {url}\n")
             print("=== SUCCESS ===")
         else:
-            print(f"ERROR: {res.status}")
+            print(f"ERROR: dev.to {res.status}")
             exit(1)
 except urllib.error.HTTPError as e:
-    print(f"ERROR: {e.code}")
+    print(f"ERROR HTTP: {e.code}")
     body = e.read().decode() if e.fp else ''
     print(f"Response: {body[:200]}")
     exit(1)
 except Exception as e:
     print(f"ERROR: {e}")
     exit(1)
-EOF
+PYEOF
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}

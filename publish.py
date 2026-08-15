@@ -75,11 +75,19 @@ Do not include anything else, just follow this exact format.'''
         tags = tags or ['java', 'programming']
         body = body.strip() or f'# {title}\n\nAuto-generated article'
         
+        # Clean tags: remove hyphens, underscores, special chars
+        cleaned_tags = []
+        for tag in tags:
+            cleaned = tag.replace('-', '').replace('_', '').replace(' ', '').lower()[:20]
+            if cleaned and cleaned.isalnum():
+                cleaned_tags.append(cleaned)
+        tags = cleaned_tags[:4] or ['java', 'programming']
+        
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
         unique_title = f"{title} ({timestamp})"
         
         print(f"✓ Title: {unique_title[:60]}")
-        print(f"✓ Tags: {tags}")
+        print(f"✓ Tags (cleaned): {tags}")
         print(f"✓ Body length: {len(body)} chars\n")
 except Exception as e:
     print(f"ERROR: {e}")
@@ -91,11 +99,10 @@ payload = {
         'title': unique_title,
         'body_markdown': body,
         'published': True,
-        'tags': tags[:4]
+        'tags': tags
     }
 }
 
-# Use curl instead of urllib to match what worked manually
 curl_cmd = [
     'curl', '-X', 'POST',
     'https://dev.to/api/articles',
@@ -105,8 +112,6 @@ curl_cmd = [
 ]
 
 result = subprocess.run(curl_cmd, capture_output=True, text=True)
-print(f"HTTP Status: {result.returncode}")
-print(f"Response: {result.stdout}\n")
 
 if result.returncode == 0:
     try:
@@ -119,7 +124,7 @@ if result.returncode == 0:
             print(f"✗ Error: {response_data['error']}")
             exit(1)
     except:
-        print(f"Could not parse response")
+        print(f"Response: {result.stdout}")
         exit(1)
 else:
     print(f"Error: {result.stderr}")

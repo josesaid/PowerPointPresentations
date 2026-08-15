@@ -14,6 +14,18 @@ DEVTO_KEY = os.environ.get('DEVTO_API_KEY', '')
 if not ANTHROPIC_KEY or not DEVTO_KEY:
     print("ERROR: Missing API keys")
     exit(1)
+
+print(f"✓ ANTHROPIC_API_KEY: {len(ANTHROPIC_KEY)} chars, starts with: {ANTHROPIC_KEY[:10]}")
+print(f"✓ DEVTO_API_KEY: {len(DEVTO_KEY)} chars, starts with: {DEVTO_KEY[:10]}")
+print(f"  Expected: sRAZfCZ2EZ")
+print(f"  Match: {DEVTO_KEY.startswith('sRAZfCZ2EZ')}\n")
+
+
+
+if not ANTHROPIC_KEY or not DEVTO_KEY:
+    print("ERROR: Missing API keys")
+    exit(1)
+
 print(f"✓ ANTHROPIC_API_KEY: {len(ANTHROPIC_KEY)} chars")
 print(f"✓ DEVTO_API_KEY: {len(DEVTO_KEY)} chars\n")
 

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 import os
 import json
-import urllib.request
-import urllib.error
+import subprocess
 from datetime import datetime
 
 print("=== START ===\n")
@@ -15,21 +14,11 @@ if not ANTHROPIC_KEY or not DEVTO_KEY:
     print("ERROR: Missing API keys")
     exit(1)
 
-print(f"✓ ANTHROPIC_API_KEY: {len(ANTHROPIC_KEY)} chars, starts with: {ANTHROPIC_KEY[:10]}")
-print(f"✓ DEVTO_API_KEY: {len(DEVTO_KEY)} chars, starts with: {DEVTO_KEY[:10]}")
-print(f"  Expected: sRAZfCZ2EZ")
-print(f"  Match: {DEVTO_KEY.startswith('sRAZfCZ2EZ')}\n")
-
-
-
-if not ANTHROPIC_KEY or not DEVTO_KEY:
-    print("ERROR: Missing API keys")
-    exit(1)
-
 print(f"✓ ANTHROPIC_API_KEY: {len(ANTHROPIC_KEY)} chars")
 print(f"✓ DEVTO_API_KEY: {len(DEVTO_KEY)} chars\n")
 
 print("2. Generating article with Claude...")
+import urllib.request
 try:
     req = urllib.request.Request(
         'https://api.anthropic.com/v1/messages',
@@ -86,7 +75,6 @@ Do not include anything else, just follow this exact format.'''
         tags = tags or ['java', 'programming']
         body = body.strip() or f'# {title}\n\nAuto-generated article'
         
-        # Add timestamp to title to make it unique
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
         unique_title = f"{title} ({timestamp})"
         
@@ -97,40 +85,42 @@ except Exception as e:
     print(f"ERROR: {e}")
     exit(1)
 
-print("3. Publishing to dev.to...")
-try:
-    req = urllib.request.Request(
-        'https://dev.to/api/articles',
-        data=json.dumps({
-            'article': {
-                'title': unique_title,
-                'body_markdown': body,
-                'published': False,
-                'tags': tags[:4]
-            }
-        }).encode(),
-        headers={
-            'api-key': DEVTO_KEY,
-            'content-type': 'application/json'
-        }
-    )
-    with urllib.request.urlopen(req) as res:
-        if res.status in [200, 201]:
-            data = json.loads(res.read())
-            url = data.get('article', {}).get('url', 'https://dev.to/said_olano')
+print("3. Publishing to dev.to using curl...")
+payload = {
+    'article': {
+        'title': unique_title,
+        'body_markdown': body,
+        'published': True,
+        'tags': tags[:4]
+    }
+}
+
+# Use curl instead of urllib to match what worked manually
+curl_cmd = [
+    'curl', '-X', 'POST',
+    'https://dev.to/api/articles',
+    '-H', f'api-key: {DEVTO_KEY}',
+    '-H', 'Content-Type: application/json',
+    '-d', json.dumps(payload)
+]
+
+result = subprocess.run(curl_cmd, capture_output=True, text=True)
+print(f"HTTP Status: {result.returncode}")
+print(f"Response: {result.stdout}\n")
+
+if result.returncode == 0:
+    try:
+        response_data = json.loads(result.stdout)
+        if 'article' in response_data:
+            url = response_data['article'].get('url', 'https://dev.to/said_olano')
             print(f"✓ Published: {url}\n")
             print("=== SUCCESS ===")
-        else:
-            print(f"ERROR: dev.to {res.status}")
+        elif 'error' in response_data:
+            print(f"✗ Error: {response_data['error']}")
             exit(1)
-except urllib.error.HTTPError as e:
-    print(f"✗ HTTP {e.code}")
-    try:
-        body_err = e.read().decode() if e.fp else 'No response body'
-        print(f"Response: {body_err}")
     except:
-        print("Could not read error response")
-    exit(1)
-except Exception as e:
-    print(f"ERROR: {e}")
+        print(f"Could not parse response")
+        exit(1)
+else:
+    print(f"Error: {result.stderr}")
     exit(1)

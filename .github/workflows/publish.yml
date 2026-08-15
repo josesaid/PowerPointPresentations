@@ -15,54 +15,73 @@ jobs:
         with:
           token: ${{ secrets.GH_PAT }}
       - name: Generate and Publish
-        run: |
-          {
-          echo "=== DEBUG LOG START ==="
-          echo "Time: $(date)"
-          
-          echo ""
-          echo "Checking API Keys..."
-          [ -z "$ANTHROPIC_API_KEY" ] && echo "ERROR: ANTHROPIC_API_KEY empty" && exit 1
-          [ -z "$DEVTO_API_KEY" ] && echo "ERROR: DEVTO_API_KEY empty" && exit 1
-          echo "✓ API Keys OK"
-          
-          echo ""
-          echo "Testing Claude..."
-          CLAUDE=$(curl -s -w "\nHTTP:%{http_code}" -X POST https://api.anthropic.com/v1/messages \
-            -H "x-api-key: $ANTHROPIC_API_KEY" \
-            -H "anthropic-version: 2023-06-01" \
-            -H "content-type: application/json" \
-            -d '{"model":"claude-opus-4-8","max_tokens":500,"messages":[{"role":"user","content":"Write a blog post title"}]}')
-          
-          CLAUDE_HTTP=$(echo "$CLAUDE" | tail -1 | grep -o '[0-9]*$')
-          echo "Claude HTTP: $CLAUDE_HTTP"
-          echo "First 150 chars: $(echo "$CLAUDE" | head -1 | head -c 150)"
-          
-          echo ""
-          echo "Testing dev.to with simple article..."
-          DEVTO=$(curl -s -w "\nHTTP:%{http_code}" -X POST https://dev.to/api/articles \
-            -H "api-key: $DEVTO_API_KEY" \
-            -H "content-type: application/json" \
-            -d '{"article":{"title":"Test Article","body_markdown":"# Test\n\nAutomated test.","published":true,"tags":["java"]}}')
-          
-          DEVTO_HTTP=$(echo "$DEVTO" | tail -1 | grep -o '[0-9]*$')
-          echo "dev.to HTTP: $DEVTO_HTTP"
-          echo "Full response:"
-          echo "$DEVTO" | head -1
-          
-          echo ""
-          echo "=== DEBUG LOG END ==="
-          } | tee workflow_debug.log
+        run: python3 << 'EOF'
+import os
+import json
+import urllib.request
+import urllib.error
+
+print("=== START ===\n")
+
+# Verify credentials
+print("1. Checking API keys...")
+ANTHROPIC_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+DEVTO_KEY = os.environ.get('DEVTO_API_KEY', '')
+
+if not ANTHROPIC_KEY or not DEVTO_KEY:
+    print("ERROR: Missing API keys")
+    exit(1)
+print(f"✓ ANTHROPIC: {len(ANTHROPIC_KEY)} chars")
+print(f"✓ DEVTO: {len(DEVTO_KEY)} chars\n")
+
+# Call Claude
+print("2. Generating article...")
+try:
+    req = urllib.request.Request(
+        'https://api.anthropic.com/v1/messages',
+        data=json.dumps({'model':'claude-opus-4-8','max_tokens':1500,'messages':[{'role':'user','content':'Write a tech blog post about Java. Return ONLY JSON: {title, body_markdown, tags}'}]}).encode(),
+        headers={'x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','content-type':'application/json'}
+    )
+    with urllib.request.urlopen(req) as res:
+        if res.status != 200:
+            print(f"Claude error: {res.status}")
+            exit(1)
+        data = json.loads(res.read())
+        text = data['content'][0]['text']
+        s = text.find('{')
+        e = text.rfind('}') + 1
+        article = json.loads(text[s:e])
+        print(f"✓ Title: {article['title'][:50]}\n")
+except Exception as e:
+    print(f"ERROR: {e}")
+    exit(1)
+
+# Publish to dev.to
+print("3. Publishing to dev.to...")
+try:
+    req = urllib.request.Request(
+        'https://dev.to/api/articles',
+        data=json.dumps({'article':{'title':article['title'],'body_markdown':article.get('body_markdown','Test'),'published':True,'tags':article.get('tags',['java'])[:4]}}).encode(),
+        headers={'api-key':DEVTO_KEY,'content-type':'application/json'}
+    )
+    with urllib.request.urlopen(req) as res:
+        if res.status in [200, 201]:
+            data = json.loads(res.read())
+            url = data.get('article', {}).get('url', 'https://dev.to/said_olano')
+            print(f"✓ Published: {url}\n")
+            print("=== SUCCESS ===")
+        else:
+            print(f"ERROR: {res.status}")
+            exit(1)
+except urllib.error.HTTPError as e:
+    print(f"ERROR: {e.code}")
+    body = e.read().decode() if e.fp else ''
+    print(f"Response: {body[:200]}")
+    exit(1)
+except Exception as e:
+    print(f"ERROR: {e}")
+    exit(1)
+EOF
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
-      - name: Save logs
-        if: always()
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add workflow_debug.log || true
-          git commit -m "logs: Workflow debug output" || true
-          git push origin master 2>/dev/null || true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}

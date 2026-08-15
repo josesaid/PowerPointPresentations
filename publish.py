@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+import os
+import json
+import urllib.request
+import urllib.error
+
+print("=== START ===\n")
+
+print("1. Checking API keys...")
+ANTHROPIC_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+DEVTO_KEY = os.environ.get('DEVTO_API_KEY', '')
+
+if not ANTHROPIC_KEY or not DEVTO_KEY:
+    print("ERROR: Missing API keys")
+    exit(1)
+print(f"✓ ANTHROPIC_API_KEY: {len(ANTHROPIC_KEY)} chars")
+print(f"✓ DEVTO_API_KEY: {len(DEVTO_KEY)} chars\n")
+
+print("2. Generating article with Claude...")
+try:
+    req = urllib.request.Request(
+        'https://api.anthropic.com/v1/messages',
+        data=json.dumps({
+            'model': 'claude-opus-4-8',
+            'max_tokens': 1500,
+            'messages': [{
+                'role': 'user',
+                'content': 'Write a technical blog about Java Spring Boot. Return only JSON: {title, body_markdown, tags}'
+            }]
+        }).encode(),
+        headers={
+            'x-api-key': ANTHROPIC_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json'
+        }
+    )
+    with urllib.request.urlopen(req) as res:
+        if res.status != 200:
+            print(f"ERROR: Claude {res.status}")
+            exit(1)
+        data = json.loads(res.read())
+        text = data['content'][0]['text']
+        s = text.find('{')
+        e = text.rfind('}') + 1
+        article = json.loads(text[s:e])
+        print(f"✓ Title: {article['title'][:60]}\n")
+except Exception as e:
+    print(f"ERROR: {e}")
+    exit(1)
+
+print("3. Publishing to dev.to...")
+try:
+    req = urllib.request.Request(
+        'https://dev.to/api/articles',
+        data=json.dumps({
+            'article': {
+                'title': article['title'],
+                'body_markdown': article.get('body_markdown', 'Test article'),
+                'published': True,
+                'tags': article.get('tags', ['java'])[:4]
+            }
+        }).encode(),
+        headers={
+            'api-key': DEVTO_KEY,
+            'content-type': 'application/json'
+        }
+    )
+    with urllib.request.urlopen(req) as res:
+        if res.status in [200, 201]:
+            data = json.loads(res.read())
+            url = data.get('article', {}).get('url', 'https://dev.to/said_olano')
+            print(f"✓ Published: {url}\n")
+            print("=== SUCCESS ===")
+        else:
+            print(f"ERROR: dev.to {res.status}")
+            exit(1)
+except urllib.error.HTTPError as e:
+    print(f"ERROR HTTP: {e.code}")
+    body = e.read().decode() if e.fp else ''
+    print(f"Response: {body[:200]}")
+    exit(1)
+except Exception as e:
+    print(f"ERROR: {e}")
+    exit(1)

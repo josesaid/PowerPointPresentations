@@ -9,148 +9,114 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
     steps:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_PAT }}
-          persist-credentials: true
-
+          persist-credentials: true  # ← Esto es lo principal
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Generate and Publish
         run: |
-          cat > /tmp/publish.js << 'EOF'
+          node << 'EOF'
+          const fs = require('fs');
+          function sanitizeTags(tags) {
+            return tags
+              .map(tag => tag.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 30))
+              .filter(tag => tag.length > 0)
+              .slice(0, 4);
+          }
           (async () => {
-            const https = require('https');
-            const fs = require('fs');
-            
-            // Helper for HTTPS requests
-            const req = (host, path, method, headers, body) => {
-              return new Promise((resolve, reject) => {
-                const opts = {
-                  hostname: host,
-                  path: path,
-                  method: method,
-                  headers: headers
-                };
-                const httpReq = https.request(opts, (res) => {
-                  let data = '';
-                  res.on('data', chunk => data += chunk);
-                  res.on('end', () => resolve({ status: res.statusCode, body: data }));
-                });
-                httpReq.on('error', reject);
-                if (body) httpReq.write(body);
-                httpReq.end();
-              });
-            };
-
             try {
               console.log('Step 1: Generate article with Claude...');
-
-              const payload = JSON.stringify({
-                model: 'claude-opus-4-8',
-                max_tokens: 1500,
-                messages: [{
-                  role: 'user',
-                  content: 'You MUST return ONLY valid JSON with no markdown formatting, no backticks, no extra text.\n\nRespond with this exact structure:\n{\n  "title": "A technical blog post title about Java",\n  "body_markdown": "The full blog post content in markdown format. Ensure all quotes are properly escaped.",\n  "tags": ["java", "springboot"]\n}\n\nGenerate a technical blog post about Java and Spring Boot now:'
-                }]
-              });
-
-              const res1 = await req('api.anthropic.com', '/v1/messages', 'POST', {
-                'x-api-key': process.env.ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json',
-                'content-length': Buffer.byteLength(payload)
-              }, payload);
-
-              if (res1.status !== 200) throw new Error('Claude API: ' + res1.body);
               
-              const claudeData = JSON.parse(res1.body);
+              const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                  'x-api-key': process.env.ANTHROPIC_API_KEY,
+                  'anthropic-version': '2023-06-01',
+                  'content-type': 'application/json'
+                },
+                body: JSON.stringify({
+                  model: "claude-opus-4-8",
+                  max_tokens: 1500,
+                  messages: [{
+                    role: "user",
+                    content: "Create a technical blog post about Java. Return ONLY raw JSON: {\"title\":\"...\",\"body_markdown\":\"...\",\"tags\":[\"java\",\"springboot\"]}"
+                  }]
+                })
+              });
+              
+              if (!claudeRes.ok) throw new Error(`Claude ${claudeRes.status}`);
+              const claudeData = await claudeRes.json();
+              
               let jsonText = claudeData.content[0].text;
-
-              // Clean markdown code fences robustly
-              jsonText = jsonText
-                .replace(/^```(?:json)?\s*\n?/m, '')
-                .replace(/\n?```\s*$/m, '')
-                .trim();
-
-              console.log('Raw response length:', jsonText.length);
-
-              let article;
-              try {
-                article = JSON.parse(jsonText);
-              } catch (parseErr) {
-                console.error('JSON parse error:', parseErr.message);
-                console.error('Response preview:', jsonText.substring(0, 300));
-                throw new Error('Failed to parse Claude response as JSON');
-              }
-
-              if (!article.title || !article.body_markdown) {
-                throw new Error('Claude response missing required fields');
-              }
-
-              article.tags = Array.isArray(article.tags) ? article.tags : ['java'];
+              jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+              const article = JSON.parse(jsonText);
               
-              console.log('✅ Generated:', article.title);
-              console.log('✅ Tags:', article.tags.join(', '));
-
+              // Sanitize tags
+              article.tags = sanitizeTags(article.tags || ['java']);
+              
+              console.log('Generated:', article.title);
+              console.log('Tags:', article.tags.join(', '));
+              
               console.log('Step 2: Publish to dev.to...');
-
-              const payload2 = JSON.stringify({
-                article: {
-                  title: article.title,
-                  body_markdown: article.body_markdown,
-                  published: true,
-                  tags: article.tags
-                }
-              });
-
-              const res2 = await req('dev.to', '/api/articles', 'POST', {
-                'api-key': process.env.DEVTO_API_KEY,
-                'content-type': 'application/json',
-                'content-length': Buffer.byteLength(payload2)
-              }, payload2);
-
-              if (res2.status !== 201) {
-                console.error('dev.to response:', res2.body);
-                throw new Error('dev.to: ' + res2.status);
-              }
-
-              const published = JSON.parse(res2.body).article;
               
-              console.log('✅ Published:', published.url);
-
-              fs.writeFileSync('published.json', JSON.stringify({
-                title: published.title,
-                url: published.url,
-                slug: published.slug,
-                timestamp: new Date().toISOString()
-              }, null, 2));
-
+              const devtoRes = await fetch('https://dev.to/api/articles', {
+                method: 'POST',
+                headers: {
+                  'api-key': process.env.DEVTO_API_KEY,
+                  'content-type': 'application/json'
+                },
+                body: JSON.stringify({
+                  article: {
+                    title: article.title,
+                    body_markdown: article.body_markdown,
+                    published: true,
+                    tags: article.tags
+                  }
+                })
+              });
+              
+              console.log('dev.to response:', devtoRes.status);
+              
+              if (!devtoRes.ok) {
+                const err = await devtoRes.text();
+                throw new Error(`dev.to ${devtoRes.status}: ${err}`);
+              }
+              
+              const bodyText = await devtoRes.text();
+              console.log('Response body:', bodyText.substring(0, 200));
+              
+              const published = JSON.parse(bodyText);
+              const articleData = published.article || published;
+              
+              fs.writeFileSync('published.json', JSON.stringify(articleData));
+              const url = articleData.url || articleData.canonical_url || 'https://dev.to/said_olano';
+              console.log('✅ SUCCESS: ' + url);
             } catch (e) {
-              console.error('❌ Error:', e.message);
+              console.error('❌ ERROR:', e.message);
               process.exit(1);
             }
           })();
           EOF
-          node /tmp/publish.js
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
 
-      - name: Configure Git
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-
       - name: Commit
         if: success()
         run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
           git add published.json || true
           git commit -m "Auto-published article" || echo "No changes to commit"
           git pull --rebase origin master 2>/dev/null || true
-          git push --force-with-lease origin master || echo "Push skipped"
+          git push --force-with-lease origin master 2>/dev/null || echo "Push skipped"
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}

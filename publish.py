@@ -2,11 +2,32 @@
 import os
 import json
 import subprocess
+import random
 from datetime import datetime
 
-print("=== START ===\n")
+print("=== PUBLISHING PIPELINE START ===\n")
 
-print("1. Checking API keys...")
+# 1. SELECT RANDOM TOPIC
+print("1. Selecting random topic...")
+try:
+    with open('temas_post_LinkedIn.txt', 'r') as f:
+        topics = [t.strip() for t in f.readlines() if t.strip()]
+    
+    with open('temas_post_LinkedIn_usados.txt', 'r') as f:
+        used = [t.strip() for t in f.readlines() if t.strip()]
+except:
+    used = []
+
+available = [t for t in topics if t not in used]
+if not available:
+    print("ERROR: No available topics")
+    exit(1)
+
+topic = random.choice(available)
+print(f"✓ Selected: {topic}\n")
+
+# 2. CHECK API KEYS
+print("2. Checking API keys...")
 ANTHROPIC_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 DEVTO_KEY = os.environ.get('DEVTO_API_KEY', '')
 
@@ -17,18 +38,26 @@ if not ANTHROPIC_KEY or not DEVTO_KEY:
 print(f"✓ ANTHROPIC_API_KEY: {len(ANTHROPIC_KEY)} chars")
 print(f"✓ DEVTO_API_KEY: {len(DEVTO_KEY)} chars\n")
 
-print("2. Generating article with Claude...")
+# 3. GENERATE ARTICLE
+print("3. Generating article with Claude...")
 import urllib.request
+
+prompt = f"""Write a professional technical blog post about: "{topic}"
+
+Format EXACTLY like this:
+TITLE: [Article Title]
+TAGS: tag1,tag2,tag3,tag4
+BODY:
+[Markdown content]
+END_BODY"""
+
 try:
     req = urllib.request.Request(
         'https://api.anthropic.com/v1/messages',
         data=json.dumps({
             'model': 'claude-opus-4-8',
             'max_tokens': 2000,
-            'messages': [{
-                'role': 'user',
-                'content': 'Write a technical blog post about Java and Spring Boot. Output format - use exactly this format with these delimiters: TITLE: Your Blog Title Here TAGS: tag1,tag2,tag3,tag4 BODY: Your markdown content here. Include headers, paragraphs, code blocks. END_BODY Do not include anything else.'
-            }]
+            'messages': [{'role': 'user', 'content': prompt}]
         }).encode(),
         headers={
             'x-api-key': ANTHROPIC_KEY,
@@ -36,19 +65,16 @@ try:
             'content-type': 'application/json'
         }
     )
+    
     with urllib.request.urlopen(req) as res:
-        if res.status != 200:
-            print(f"ERROR: Claude {res.status}")
-            exit(1)
         data = json.loads(res.read())
         text = data['content'][0]['text'].strip()
         
+        # Parse
         lines = text.split('\n')
-        title = ""
-        tags = []
-        body = ""
-        
+        title, tags, body = '', [], ''
         parsing_body = False
+        
         for line in lines:
             if line.startswith('TITLE:'):
                 title = line.replace('TITLE:', '').strip()
@@ -61,67 +87,63 @@ try:
             elif parsing_body:
                 body += line + '\n'
         
-        title = title or 'Untitled'
+        title = f"{title} ({datetime.now().strftime('%Y-%m-%d %H:%M')})" if title else 'Untitled'
         tags = tags or ['java', 'programming']
         body = body.strip() or f'# {title}\n\nAuto-generated article'
         
-        cleaned_tags = []
+        # Clean tags
+        cleaned = []
         for tag in tags:
-            cleaned = tag.replace('-', '').replace('_', '').replace(' ', '').lower()[:20]
-            if cleaned and cleaned.isalnum():
-                cleaned_tags.append(cleaned)
-        tags = cleaned_tags[:4] or ['java', 'programming']
+            clean = tag.replace('-', '').replace('_', '').lower()[:20]
+            if clean and clean.isalnum():
+                cleaned.append(clean)
+        tags = cleaned[:4] or ['java', 'programming']
         
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
-        unique_title = f"{title} ({timestamp})"
-        
-        print(f"✓ Title: {unique_title[:60]}")
-        print(f"✓ Tags (cleaned): {tags}")
-        print(f"✓ Body length: {len(body)} chars\n")
+        print(f"✓ Generated: {title[:50]}...")
+        print(f"✓ Tags: {', '.join(tags)}\n")
 except Exception as e:
     print(f"ERROR: {e}")
     exit(1)
 
-print("3. Publishing to dev.to using curl...")
+# 4. PUBLISH TO DEV.TO
+print("4. Publishing to dev.to...")
 payload = {
     'article': {
-        'title': unique_title,
+        'title': title,
         'body_markdown': body,
         'published': True,
         'tags': tags
     }
 }
 
-curl_cmd = [
-    'curl', '-X', 'POST',
-    'https://dev.to/api/articles',
-    '-H', f'api-key: {DEVTO_KEY}',
-    '-H', 'Content-Type: application/json',
-    '-d', json.dumps(payload)
-]
-
-result = subprocess.run(curl_cmd, capture_output=True, text=True)
-
-if result.returncode == 0:
-    try:
-        response_data = json.loads(result.stdout)
-        if 'article' in response_data:
-            url = response_data['article'].get('url', 'https://dev.to/said_olano')
-            
-            # SAVE STATE FOR LINKEDIN
-            with open('article_state.txt', 'w') as f:
-                f.write(f"TITLE:{unique_title}\n")
-                f.write(f"URL:{url}\n")
-                f.write(f"TAGS:{','.join(tags)}\n")
-            
-            print(f"✓ Published: {url}\n")
-            print("=== SUCCESS ===")
-        elif 'error' in response_data:
-            print(f"✗ Error: {response_data['error']}")
-            exit(1)
-    except:
-        print(f"Response: {result.stdout}")
+try:
+    result = subprocess.run([
+        'curl', '-X', 'POST', 'https://dev.to/api/articles',
+        '-H', f'api-key: {DEVTO_KEY}',
+        '-H', 'Content-Type: application/json',
+        '-d', json.dumps(payload)
+    ], capture_output=True, text=True)
+    
+    response = json.loads(result.stdout)
+    if 'article' in response:
+        url = response['article'].get('url', 'https://dev.to/said_olano')
+        
+        # Save state
+        with open('article_state.txt', 'w') as f:
+            f.write(f"TITLE:{title}\n")
+            f.write(f"URL:{url}\n")
+            f.write(f"TAGS:{','.join(tags)}\n")
+            f.write(f"TOPIC:{topic}\n")
+        
+        # Mark topic as used
+        with open('temas_post_LinkedIn_usados.txt', 'a') as f:
+            f.write(topic + '\n')
+        
+        print(f"✓ Published: {url}\n")
+        print("=== SUCCESS ===")
+    else:
+        print(f"ERROR: {response}")
         exit(1)
-else:
-    print(f"Error: {result.stderr}")
+except Exception as e:
+    print(f"ERROR: {e}")
     exit(1)

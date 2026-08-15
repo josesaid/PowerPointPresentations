@@ -16,52 +16,53 @@ jobs:
           token: ${{ secrets.GH_PAT }}
       - name: Generate and Publish
         run: |
-          set -e
-          echo "=== START PIPELINE ==="
-          echo "Step 1: Checking API keys..."
-          echo "ANTHROPIC_API_KEY: ${#ANTHROPIC_API_KEY} chars"
-          echo "DEVTO_API_KEY: ${#DEVTO_API_KEY} chars"
+          {
+          echo "=== DEBUG LOG START ==="
+          echo "Time: $(date)"
           
           echo ""
-          echo "Step 2: Generate with Claude..."
-          RESPONSE=$(curl -s -X POST https://api.anthropic.com/v1/messages \
+          echo "Checking API Keys..."
+          [ -z "$ANTHROPIC_API_KEY" ] && echo "ERROR: ANTHROPIC_API_KEY empty" && exit 1
+          [ -z "$DEVTO_API_KEY" ] && echo "ERROR: DEVTO_API_KEY empty" && exit 1
+          echo "✓ API Keys OK"
+          
+          echo ""
+          echo "Testing Claude..."
+          CLAUDE=$(curl -s -w "\nHTTP:%{http_code}" -X POST https://api.anthropic.com/v1/messages \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
-            -d '{"model":"claude-opus-4-8","max_tokens":1500,"messages":[{"role":"user","content":"Write a tech blog about Java. Return ONLY JSON with: title, body_markdown, tags"}]}')
+            -d '{"model":"claude-opus-4-8","max_tokens":500,"messages":[{"role":"user","content":"Write a blog post title"}]}')
           
-          echo "Claude status: OK ($(echo $RESPONSE | wc -c) chars)"
-          TITLE=$(echo "$RESPONSE" | grep -o '"title":"[^"]*' | cut -d'"' -f4 | head -1)
-          BODY=$(echo "$RESPONSE" | grep -o '"body_markdown":"[^"]*' | cut -d'"' -f4 | head -1)
-          
-          echo "Title: $TITLE"
-          if [ -z "$TITLE" ]; then
-            echo "ERROR: No title extracted!"
-            exit 1
-          fi
+          CLAUDE_HTTP=$(echo "$CLAUDE" | tail -1 | grep -o '[0-9]*$')
+          echo "Claude HTTP: $CLAUDE_HTTP"
+          echo "First 150 chars: $(echo "$CLAUDE" | head -1 | head -c 150)"
           
           echo ""
-          echo "Step 3: Publish to dev.to..."
-          DEV_RESPONSE=$(curl -s -X POST https://dev.to/api/articles \
+          echo "Testing dev.to with simple article..."
+          DEVTO=$(curl -s -w "\nHTTP:%{http_code}" -X POST https://dev.to/api/articles \
             -H "api-key: $DEVTO_API_KEY" \
             -H "content-type: application/json" \
-            -d '{"article":{"title":"'"$TITLE"'","body_markdown":"'"$BODY"'","published":true,"tags":["java","springboot"]}}')
+            -d '{"article":{"title":"Test Article","body_markdown":"# Test\n\nAutomated test.","published":true,"tags":["java"]}}')
           
-          echo "dev.to response: OK"
-          URL=$(echo "$DEV_RESPONSE" | grep -o '"url":"[^"]*' | cut -d'"' -f4 | head -1)
-          echo "URL: $URL"
+          DEVTO_HTTP=$(echo "$DEVTO" | tail -1 | grep -o '[0-9]*$')
+          echo "dev.to HTTP: $DEVTO_HTTP"
+          echo "Full response:"
+          echo "$DEVTO" | head -1
+          
           echo ""
-          echo "=== SUCCESS ==="
+          echo "=== DEBUG LOG END ==="
+          } | tee workflow_debug.log
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}
-      - name: Commit
-        if: success()
+      - name: Save logs
+        if: always()
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add publish_state.json || true
-          git commit -m "docs: Auto-published article" || true
-          git push origin master || true
+          git add workflow_debug.log || true
+          git commit -m "logs: Workflow debug output" || true
+          git push origin master 2>/dev/null || true
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}

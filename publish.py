@@ -25,7 +25,7 @@ try:
             'max_tokens': 1500,
             'messages': [{
                 'role': 'user',
-                'content': 'Write a technical blog post about Java. Respond with ONLY a JSON object with these exact fields: title (string), body_markdown (string), tags (array). No other text. Just raw JSON.'
+                'content': 'Write a technical blog post about Java and Spring Boot. Output ONLY valid JSON with fields: title, body_markdown, tags. Ensure all quotes in body_markdown are properly escaped.'
             }]
         }).encode(),
         headers={
@@ -45,14 +45,23 @@ try:
         e = text.rfind('}') + 1
         if s == -1 or e == 0:
             print(f"ERROR: No JSON found")
+            print(f"Response: {text[:200]}")
             exit(1)
         
         json_str = text[s:e]
+        print(f"Extracted JSON length: {len(json_str)} chars")
+        
         try:
             article = json.loads(json_str)
         except json.JSONDecodeError as je:
             print(f"ERROR parsing JSON: {je}")
-            exit(1)
+            print(f"Trying to clean JSON...")
+            json_str = json_str.replace('\\"', '"').replace('\\n', '\n')
+            try:
+                article = json.loads(json_str)
+            except:
+                print(f"Failed to parse even after cleaning")
+                exit(1)
         
         title = article.get('title', 'Untitled')
         print(f"✓ Title: {title[:60]}\n")
@@ -60,24 +69,7 @@ except Exception as e:
     print(f"ERROR: {e}")
     exit(1)
 
-print("3. Testing dev.to API key...")
-try:
-    req = urllib.request.Request(
-        'https://dev.to/api/me',
-        headers={'api-key': DEVTO_KEY}
-    )
-    with urllib.request.urlopen(req) as res:
-        data = json.loads(res.read())
-        username = data.get('username', 'Unknown')
-        print(f"✓ API Key valid! User: {username}\n")
-except urllib.error.HTTPError as e:
-    body = e.read().decode() if e.fp else ''
-    print(f"✗ API Key test FAILED: HTTP {e.code}")
-    print(f"Response: {body}")
-    print(f"\nThe API key may be invalid, revoked, or belong to a different account.")
-    exit(1)
-
-print("4. Publishing to dev.to...")
+print("3. Publishing to dev.to...")
 try:
     body = article.get('body_markdown', f'# {title}\n\nAuto-generated article')
     tags = article.get('tags', ['java'])
@@ -89,10 +81,10 @@ try:
         'https://dev.to/api/articles',
         data=json.dumps({
             'article': {
-                'title': title,
-                'body_markdown': body,
+                'title': str(title),
+                'body_markdown': str(body),
                 'published': True,
-                'tags': tags
+                'tags': list(tags)
             }
         }).encode(),
         headers={
@@ -110,9 +102,9 @@ try:
             print(f"ERROR: dev.to {res.status}")
             exit(1)
 except urllib.error.HTTPError as e:
-    body = e.read().decode() if e.fp else '{}'
+    body_err = e.read().decode() if e.fp else '{}'
     print(f"✗ HTTP {e.code}")
-    print(f"Error: {body}")
+    print(f"Error: {body_err}")
     exit(1)
 except Exception as e:
     print(f"ERROR: {e}")

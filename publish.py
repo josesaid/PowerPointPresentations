@@ -105,7 +105,7 @@ try:
             'article': {
                 'title': unique_title,
                 'body_markdown': body,
-                'published': True,
+                'published': False,
                 'tags': tags[:4]
             }
         }).encode(),

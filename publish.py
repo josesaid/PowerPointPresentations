@@ -22,10 +22,20 @@ try:
         'https://api.anthropic.com/v1/messages',
         data=json.dumps({
             'model': 'claude-opus-4-8',
-            'max_tokens': 1500,
+            'max_tokens': 2000,
             'messages': [{
                 'role': 'user',
-                'content': 'Write a technical blog post about Java and Spring Boot. Output ONLY valid JSON with fields: title, body_markdown, tags. Ensure all quotes in body_markdown are properly escaped.'
+                'content': '''Write a technical blog post about Java and Spring Boot.
+
+Output format - use exactly this format with these delimiters:
+TITLE: Your Blog Title Here
+TAGS: tag1,tag2,tag3,tag4
+BODY:
+Your markdown content here. Include headers, paragraphs, code blocks.
+Use proper markdown syntax.
+END_BODY
+
+Do not include anything else, just follow this exact format.'''
             }]
         }).encode(),
         headers={
@@ -41,50 +51,46 @@ try:
         data = json.loads(res.read())
         text = data['content'][0]['text'].strip()
         
-        s = text.find('{')
-        e = text.rfind('}') + 1
-        if s == -1 or e == 0:
-            print(f"ERROR: No JSON found")
-            print(f"Response: {text[:200]}")
-            exit(1)
+        # Parse the response
+        lines = text.split('\n')
+        title = ""
+        tags = []
+        body = ""
         
-        json_str = text[s:e]
-        print(f"Extracted JSON length: {len(json_str)} chars")
+        parsing_body = False
+        for line in lines:
+            if line.startswith('TITLE:'):
+                title = line.replace('TITLE:', '').strip()
+            elif line.startswith('TAGS:'):
+                tags = [t.strip() for t in line.replace('TAGS:', '').split(',')]
+            elif line.startswith('BODY:'):
+                parsing_body = True
+            elif line.startswith('END_BODY'):
+                parsing_body = False
+            elif parsing_body:
+                body += line + '\n'
         
-        try:
-            article = json.loads(json_str)
-        except json.JSONDecodeError as je:
-            print(f"ERROR parsing JSON: {je}")
-            print(f"Trying to clean JSON...")
-            json_str = json_str.replace('\\"', '"').replace('\\n', '\n')
-            try:
-                article = json.loads(json_str)
-            except:
-                print(f"Failed to parse even after cleaning")
-                exit(1)
+        title = title or 'Untitled'
+        tags = tags or ['java', 'programming']
+        body = body.strip() or f'# {title}\n\nAuto-generated article'
         
-        title = article.get('title', 'Untitled')
-        print(f"✓ Title: {title[:60]}\n")
+        print(f"✓ Title: {title[:60]}")
+        print(f"✓ Tags: {tags}")
+        print(f"✓ Body length: {len(body)} chars\n")
 except Exception as e:
     print(f"ERROR: {e}")
     exit(1)
 
 print("3. Publishing to dev.to...")
 try:
-    body = article.get('body_markdown', f'# {title}\n\nAuto-generated article')
-    tags = article.get('tags', ['java'])
-    if not isinstance(tags, list):
-        tags = ['java']
-    tags = tags[:4]
-    
     req = urllib.request.Request(
         'https://dev.to/api/articles',
         data=json.dumps({
             'article': {
-                'title': str(title),
-                'body_markdown': str(body),
+                'title': title,
+                'body_markdown': body,
                 'published': True,
-                'tags': list(tags)
+                'tags': tags[:4]
             }
         }).encode(),
         headers={

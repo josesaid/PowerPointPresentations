@@ -51,7 +51,6 @@ Do not include anything else, just follow this exact format.'''
         data = json.loads(res.read())
         text = data['content'][0]['text'].strip()
         
-        # Parse the response
         lines = text.split('\n')
         title = ""
         tags = []
@@ -108,9 +107,12 @@ try:
             print(f"ERROR: dev.to {res.status}")
             exit(1)
 except urllib.error.HTTPError as e:
-    body_err = e.read().decode() if e.fp else '{}'
     print(f"✗ HTTP {e.code}")
-    print(f"Error: {body_err}")
+    try:
+        body_err = e.read().decode() if e.fp else 'No response body'
+        print(f"Response: {body_err}")
+    except:
+        print("Could not read error response")
     exit(1)
 except Exception as e:
     print(f"ERROR: {e}")

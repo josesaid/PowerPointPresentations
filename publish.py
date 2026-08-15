@@ -27,17 +27,7 @@ try:
             'max_tokens': 2000,
             'messages': [{
                 'role': 'user',
-                'content': '''Write a technical blog post about Java and Spring Boot.
-
-Output format - use exactly this format with these delimiters:
-TITLE: Your Blog Title Here
-TAGS: tag1,tag2,tag3,tag4
-BODY:
-Your markdown content here. Include headers, paragraphs, code blocks.
-Use proper markdown syntax.
-END_BODY
-
-Do not include anything else, just follow this exact format.'''
+                'content': 'Write a technical blog post about Java and Spring Boot. Output format - use exactly this format with these delimiters: TITLE: Your Blog Title Here TAGS: tag1,tag2,tag3,tag4 BODY: Your markdown content here. Include headers, paragraphs, code blocks. END_BODY Do not include anything else.'
             }]
         }).encode(),
         headers={
@@ -75,7 +65,6 @@ Do not include anything else, just follow this exact format.'''
         tags = tags or ['java', 'programming']
         body = body.strip() or f'# {title}\n\nAuto-generated article'
         
-        # Clean tags: remove hyphens, underscores, special chars
         cleaned_tags = []
         for tag in tags:
             cleaned = tag.replace('-', '').replace('_', '').replace(' ', '').lower()[:20]
@@ -118,6 +107,13 @@ if result.returncode == 0:
         response_data = json.loads(result.stdout)
         if 'article' in response_data:
             url = response_data['article'].get('url', 'https://dev.to/said_olano')
+            
+            # SAVE STATE FOR LINKEDIN
+            with open('article_state.txt', 'w') as f:
+                f.write(f"TITLE:{unique_title}\n")
+                f.write(f"URL:{url}\n")
+                f.write(f"TAGS:{','.join(tags)}\n")
+            
             print(f"✓ Published: {url}\n")
             print("=== SUCCESS ===")
         elif 'error' in response_data:

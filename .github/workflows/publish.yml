@@ -21,129 +21,121 @@ jobs:
 
       - name: Generate and Publish
         run: |
-          node -e "
-            (async () => {
-              const https = require('https');
-              const fs = require('fs');
+          cat > /tmp/publish.js << 'EOF'
+          (async () => {
+            const https = require('https');
+            const fs = require('fs');
+            
+            // Helper for HTTPS requests
+            const req = (host, path, method, headers, body) => {
+              return new Promise((resolve, reject) => {
+                const opts = {
+                  hostname: host,
+                  path: path,
+                  method: method,
+                  headers: headers
+                };
+                const httpReq = https.request(opts, (res) => {
+                  let data = '';
+                  res.on('data', chunk => data += chunk);
+                  res.on('end', () => resolve({ status: res.statusCode, body: data }));
+                });
+                httpReq.on('error', reject);
+                if (body) httpReq.write(body);
+                httpReq.end();
+              });
+            };
+
+            try {
+              console.log('Step 1: Generate article with Claude...');
+
+              const payload = JSON.stringify({
+                model: 'claude-opus-4-8',
+                max_tokens: 1500,
+                messages: [{
+                  role: 'user',
+                  content: 'You MUST return ONLY valid JSON with no markdown formatting, no backticks, no extra text.\n\nRespond with this exact structure:\n{\n  "title": "A technical blog post title about Java",\n  "body_markdown": "The full blog post content in markdown format. Ensure all quotes are properly escaped.",\n  "tags": ["java", "springboot"]\n}\n\nGenerate a technical blog post about Java and Spring Boot now:'
+                }]
+              });
+
+              const res1 = await req('api.anthropic.com', '/v1/messages', 'POST', {
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+                'content-length': Buffer.byteLength(payload)
+              }, payload);
+
+              if (res1.status !== 200) throw new Error('Claude API: ' + res1.body);
               
-              // Helper for HTTPS requests
-              const req = (host, path, method, headers, body) => {
-                return new Promise((resolve, reject) => {
-                  const opts = {
-                    hostname: host,
-                    path: path,
-                    method: method,
-                    headers: headers
-                  };
-                  const httpReq = https.request(opts, (res) => {
-                    let data = '';
-                    res.on('data', chunk => data += chunk);
-                    res.on('end', () => resolve({ status: res.statusCode, body: data }));
-                  });
-                  httpReq.on('error', reject);
-                  if (body) httpReq.write(body);
-                  httpReq.end();
-                });
-              };
+              const claudeData = JSON.parse(res1.body);
+              let jsonText = claudeData.content[0].text;
 
+              // Clean markdown code fences robustly
+              jsonText = jsonText
+                .replace(/^```(?:json)?\s*\n?/m, '')
+                .replace(/\n?```\s*$/m, '')
+                .trim();
+
+              console.log('Raw response length:', jsonText.length);
+
+              let article;
               try {
-                console.log('Step 1: Generate article with Claude...');
-
-                const payload = JSON.stringify({
-                  model: 'claude-opus-4-8',
-                  max_tokens: 1500,
-                  messages: [{
-                    role: 'user',
-                    content: \`You MUST return ONLY valid JSON with no markdown formatting, no backticks, no extra text.
-                    
-Respond with this exact structure:
-{
-  \"title\": \"A technical blog post title about Java\",
-  \"body_markdown\": \"The full blog post content in markdown format. Ensure all quotes are properly escaped.\",
-  \"tags\": [\"java\", \"springboot\"]
-}
-
-Generate a technical blog post about Java and Spring Boot now:\`
-                  }]
-                });
-
-                const res1 = await req('api.anthropic.com', '/v1/messages', 'POST', {
-                  'x-api-key': process.env.ANTHROPIC_API_KEY,
-                  'anthropic-version': '2023-06-01',
-                  'content-type': 'application/json',
-                  'content-length': Buffer.byteLength(payload)
-                }, payload);
-
-                if (res1.status !== 200) throw new Error('Claude API: ' + res1.body);
-                
-                const claudeData = JSON.parse(res1.body);
-                let jsonText = claudeData.content[0].text;
-
-                // Clean markdown code fences robustly
-                jsonText = jsonText
-                  .replace(/^\`\`\`(?:json)?\s*\n?/m, '')
-                  .replace(/\n?\`\`\`\s*$/m, '')
-                  .trim();
-
-                console.log('Raw response length:', jsonText.length);
-
-                let article;
-                try {
-                  article = JSON.parse(jsonText);
-                } catch (parseErr) {
-                  console.error('JSON parse error:', parseErr.message);
-                  console.error('Response preview:', jsonText.substring(0, 300));
-                  throw new Error('Failed to parse Claude response as JSON');
-                }
-
-                if (!article.title || !article.body_markdown) {
-                  throw new Error('Claude response missing required fields');
-                }
-
-                article.tags = Array.isArray(article.tags) ? article.tags : ['java'];
-                
-                console.log('✅ Generated:', article.title);
-                console.log('✅ Tags:', article.tags.join(', '));
-
-                console.log('Step 2: Publish to dev.to...');
-
-                const payload2 = JSON.stringify({
-                  article: {
-                    title: article.title,
-                    body_markdown: article.body_markdown,
-                    published: true,
-                    tags: article.tags
-                  }
-                });
-
-                const res2 = await req('dev.to', '/api/articles', 'POST', {
-                  'api-key': process.env.DEVTO_API_KEY,
-                  'content-type': 'application/json',
-                  'content-length': Buffer.byteLength(payload2)
-                }, payload2);
-
-                if (res2.status !== 201) {
-                  console.error('dev.to response:', res2.body);
-                  throw new Error('dev.to: ' + res2.status);
-                }
-
-                const published = JSON.parse(res2.body).article;
-                
-                console.log('✅ Published:', published.url);
-
-                fs.writeFileSync('published.json', JSON.stringify({
-                  title: published.title,
-                  url: published.url,
-                  slug: published.slug,
-                  timestamp: new Date().toISOString()
-                }, null, 2));
-
-              } catch (e) {
-                console.error('❌ Error:', e.message);
-                process.exit(1);
+                article = JSON.parse(jsonText);
+              } catch (parseErr) {
+                console.error('JSON parse error:', parseErr.message);
+                console.error('Response preview:', jsonText.substring(0, 300));
+                throw new Error('Failed to parse Claude response as JSON');
               }
-            })();
-          "
+
+              if (!article.title || !article.body_markdown) {
+                throw new Error('Claude response missing required fields');
+              }
+
+              article.tags = Array.isArray(article.tags) ? article.tags : ['java'];
+              
+              console.log('✅ Generated:', article.title);
+              console.log('✅ Tags:', article.tags.join(', '));
+
+              console.log('Step 2: Publish to dev.to...');
+
+              const payload2 = JSON.stringify({
+                article: {
+                  title: article.title,
+                  body_markdown: article.body_markdown,
+                  published: true,
+                  tags: article.tags
+                }
+              });
+
+              const res2 = await req('dev.to', '/api/articles', 'POST', {
+                'api-key': process.env.DEVTO_API_KEY,
+                'content-type': 'application/json',
+                'content-length': Buffer.byteLength(payload2)
+              }, payload2);
+
+              if (res2.status !== 201) {
+                console.error('dev.to response:', res2.body);
+                throw new Error('dev.to: ' + res2.status);
+              }
+
+              const published = JSON.parse(res2.body).article;
+              
+              console.log('✅ Published:', published.url);
+
+              fs.writeFileSync('published.json', JSON.stringify({
+                title: published.title,
+                url: published.url,
+                slug: published.slug,
+                timestamp: new Date().toISOString()
+              }, null, 2));
+
+            } catch (e) {
+              console.error('❌ Error:', e.message);
+              process.exit(1);
+            }
+          })();
+          EOF
+          node /tmp/publish.js
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEVTO_API_KEY: ${{ secrets.DEVTO_API_KEY }}

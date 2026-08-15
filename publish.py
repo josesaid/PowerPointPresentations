@@ -3,6 +3,7 @@ import os
 import json
 import urllib.request
 import urllib.error
+from datetime import datetime
 
 print("=== START ===\n")
 
@@ -73,7 +74,11 @@ Do not include anything else, just follow this exact format.'''
         tags = tags or ['java', 'programming']
         body = body.strip() or f'# {title}\n\nAuto-generated article'
         
-        print(f"✓ Title: {title[:60]}")
+        # Add timestamp to title to make it unique
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
+        unique_title = f"{title} ({timestamp})"
+        
+        print(f"✓ Title: {unique_title[:60]}")
         print(f"✓ Tags: {tags}")
         print(f"✓ Body length: {len(body)} chars\n")
 except Exception as e:
@@ -86,7 +91,7 @@ try:
         'https://dev.to/api/articles',
         data=json.dumps({
             'article': {
-                'title': title,
+                'title': unique_title,
                 'body_markdown': body,
                 'published': True,
                 'tags': tags[:4]

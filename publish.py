@@ -25,7 +25,7 @@ try:
             'max_tokens': 1500,
             'messages': [{
                 'role': 'user',
-                'content': 'Write a technical blog about Java Spring Boot. Return only JSON: {title, body_markdown, tags}'
+                'content': 'Write a technical blog post about Java. Respond with ONLY a JSON object with these exact fields: title (string), body_markdown (string), tags (array). No other text. Just raw JSON.'
             }]
         }).encode(),
         headers={
@@ -39,25 +39,47 @@ try:
             print(f"ERROR: Claude {res.status}")
             exit(1)
         data = json.loads(res.read())
-        text = data['content'][0]['text']
+        text = data['content'][0]['text'].strip()
+        print(f"Response length: {len(text)} chars")
+        print(f"First 100 chars: {text[:100]}\n")
+        
         s = text.find('{')
         e = text.rfind('}') + 1
-        article = json.loads(text[s:e])
-        print(f"✓ Title: {article['title'][:60]}\n")
+        if s == -1 or e == 0:
+            print(f"ERROR: No JSON found")
+            print(f"Full response: {text}")
+            exit(1)
+        
+        json_str = text[s:e]
+        try:
+            article = json.loads(json_str)
+        except json.JSONDecodeError as je:
+            print(f"ERROR parsing JSON: {je}")
+            print(f"JSON: {json_str[:200]}")
+            exit(1)
+        
+        title = article.get('title', 'Untitled')
+        print(f"✓ Title: {title[:60]}\n")
 except Exception as e:
     print(f"ERROR: {e}")
     exit(1)
 
 print("3. Publishing to dev.to...")
 try:
+    body = article.get('body_markdown', f'# {title}\n\nAuto-generated article')
+    tags = article.get('tags', ['java'])
+    if not isinstance(tags, list):
+        tags = ['java']
+    tags = tags[:4]
+    
     req = urllib.request.Request(
         'https://dev.to/api/articles',
         data=json.dumps({
             'article': {
-                'title': article['title'],
-                'body_markdown': article.get('body_markdown', 'Test article'),
+                'title': title,
+                'body_markdown': body,
                 'published': True,
-                'tags': article.get('tags', ['java'])[:4]
+                'tags': tags
             }
         }).encode(),
         headers={
@@ -77,7 +99,7 @@ try:
 except urllib.error.HTTPError as e:
     print(f"ERROR HTTP: {e.code}")
     body = e.read().decode() if e.fp else ''
-    print(f"Response: {body[:200]}")
+    print(f"Response: {body[:300]}")
     exit(1)
 except Exception as e:
     print(f"ERROR: {e}")
